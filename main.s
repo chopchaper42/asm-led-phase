@@ -26,8 +26,6 @@ loop:
     tst r1, #0x1        @ Test if 1st pin is HIGH
     
     beq loop1          @ if button isn't pressed, go to loop1
-    mov r0, #1         @ put 1 to R0 to use in delay
-    bl delay           @ delay to avoid switch bouncing
 
     bl green_led_off
     bl blue_led_on
@@ -114,7 +112,7 @@ bx lr
 
 delay:
 
-    ldr r1, =0x100000
+    ldr r1, =0x1F0000
 delay_second:
     subs r1, #1
     bne delay_second
