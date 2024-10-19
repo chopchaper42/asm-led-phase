@@ -23,24 +23,39 @@
 _start: @ jako main v c
     bl setup_clock
     bl setup_gpio
-    mov r6, 0           @ set LEDS_ON flag to zero
-    mov r5, 0           @ set TIMER to 0
-    mov r7, 0           @ set BUTTON_PRESSED to 0
+    mov r6, #0           @ set LEDS_ON flag to zero
+    mov r5, #0           @ set TIMER to 0
+    mov r7, #0           @ set BUTTON_PRESSED to 0
     bl turn_leds_off    @ turn leds off
     
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
     ldr r1, [r0]        @ load the value stored on address from r0 to r1. r1 = 0x40010808
     tst r1, #1          @ Test if 1st pin is HIGH
-    
-    ite eq
-    moveq r7, #0         @ if button isn't pressed, set flag to 0
-    movne r7, #1         @ else set flag to 1
 
     ldr r0, =0x384E6     @ 0,1sec
 debounce:
     subs r0, #1
     bne debounce
+
+@@@@@@@@@@@@@ TEST @@@@@@@@@@@@@@@@@@@@@@@
+
+    cmp r5, #0          @ compare TIMER with 0
+    beq test_on_zero    @ if TIMER == 0, jump to on_timer_zero
+
+    subs r5, #1          @ else subtract 1 from TIMER
+    b loop              @ and jump to loop
+
+test_on_zero:
+    @ldr r5, =0x384E6   @ set TIMER for 0,5 sec
+
+    bl toggle_green
+
+b loop
+
+
+
+@@@@@@@@@@@@@ /TEST @@@@@@@@@@@@@@@@@@@@@@
 
     @ after debounce handling
     cmp r5, #0          @ compare TIMER with 0
@@ -115,10 +130,19 @@ bx lr
 green_led_on:
     ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
     ldr r1, [r0]         @ move r0 to r1
-    orr r1, #0x200     @ set 8th pin to 1
+    orr r1, #0x200     @ set 9th pin to 1
     str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
 
 bx lr
+
+toggle_green:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    eor r1, #0x200     @ set 9th pin to 1
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
 
 
 blue_led_off:
