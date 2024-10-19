@@ -16,40 +16,90 @@
 .set GPIOA_ODR, 0x4001080C
 .set GPIOA_IDR, 0x40010808
 
+@ R5 - TIMER
+@ R6 - PHASE flag
+@ R7 - BUTTON_PRESSED
+
 _start: @ jako main v c
-    bl setup_clock  @ bl - branch and link
+    bl setup_clock
     bl setup_gpio
+    mov r6, 0           @ set LEDS_ON flag to zero
+    mov r5, 0           @ set TIMER to 0
+    mov r7, 0           @ set BUTTON_PRESSED to 0
+    bl turn_leds_off    @ turn leds off
     
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
     ldr r1, [r0]        @ load the value stored on address from r0 to r1. r1 = 0x40010808
     tst r1, #0x1        @ Test if 1st pin is HIGH
     
-    beq loop1          @ if button isn't pressed, go to loop1
+    ite eq
+    moveq r7, 1         @ if button is pressed, set flag to 1
+    movne r7, 0         @ else set flag to 0
 
-    bl green_led_off
-    bl blue_led_on
+    ldr r0, =0x384E6     @ 0,1sec
+debounce:
+    subs r0, 1
+    bne debounce
+
+    @ after debounce handling
+    cmp r5, 0           @ compare TIMER with 0
+    beq on_timer_zero   @ if TIMER == 0, jump to on_timer_zero
+
+    subs r5, 1          @ else subtract 1 from TIMER
+    b loop              @ and jump to loop
+
+on_timer_zero:
+    ldr r5, =0x11987E   @ set TIMER for 0,5 sec
+
+    cmp r7, #1          @ check if the BUTTON_PRESSED flag is 0
+    bne out_of_phase
+
+    @ in phase
+    cmp r6, #0          @ check if PHASE flag is zero
+    beq turn_on         @ if it is zero, turn the leds on
     
-    mov r0, #1         @ put 1 to R0 to use in delay
-    bl delay           @ delay to avoid switch bouncing
+    bl turn_leds_off    @ turn leds off
+    eor r6, 1           @ toggle the PHASE flag
 
-    bl green_led_on
-    bl blue_led_off
-    mov r0, #1         @ put 1 to R0 to use in delay
-    bl delay           @ delay to avoid switch bouncing
-
-    b loop
-
-loop1:
-    bl green_led_on
-    bl blue_led_on
-    mov r0, #1         @ put 1 to R0 to use in delay
-    bl delay           @ delay to avoid switch bouncing
-    bl green_led_off
-    bl blue_led_off
-    mov r0, #1         @ put 1 to R0 to use in delay
-    bl delay           @ delay to avoid switch bouncing
 b loop
+
+turn_on:
+    bl turn_leds_on     @ turn the leds on
+    eor r6, 1           @ toggle the PHASE flag
+
+b loop
+
+out_of_phase:
+    bl turn_leds_off
+    
+    cmp r6, #0      @ check the PHASE flag
+    beq green_phase @ turn on the green
+
+    bl blue_led_on
+
+b loop
+
+green_phase:
+    bl green_led_on
+
+b loop
+
+turn_leds_off:
+    ldr r0, =GPIOC_ODR   @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    bic r1, #0x300       @ set 8th pin to 1
+    str r1, [r0]         @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
+turn_leds_on:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    orr r1, #0x300     @ set 8th pin to 1
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
 
 
 blue_led_on:
@@ -110,12 +160,4 @@ setup_gpio:
 
 bx lr
 
-delay:
-
-    ldr r1, =0x1F0000
-delay_second:
-    subs r1, #1
-    bne delay_second
-    subs r0, #1
-    bne delay
-bx lr
+check_btn:
