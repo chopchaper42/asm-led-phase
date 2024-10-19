@@ -31,42 +31,42 @@ _start: @ jako main v c
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
     ldr r1, [r0]        @ load the value stored on address from r0 to r1. r1 = 0x40010808
-    tst r1, #0x1        @ Test if 1st pin is HIGH
+    tst r1, #1          @ Test if 1st pin is HIGH
     
     ite eq
-    moveq r7, 1         @ if button is pressed, set flag to 1
-    movne r7, 0         @ else set flag to 0
+    moveq r7, #0         @ if button isn't pressed, set flag to 0
+    movne r7, #1         @ else set flag to 1
 
     ldr r0, =0x384E6     @ 0,1sec
 debounce:
-    subs r0, 1
+    subs r0, #1
     bne debounce
 
     @ after debounce handling
-    cmp r5, 0           @ compare TIMER with 0
+    cmp r5, #0          @ compare TIMER with 0
     beq on_timer_zero   @ if TIMER == 0, jump to on_timer_zero
 
-    subs r5, 1          @ else subtract 1 from TIMER
+    subs r5, #1          @ else subtract 1 from TIMER
     b loop              @ and jump to loop
 
 on_timer_zero:
     ldr r5, =0x11987E   @ set TIMER for 0,5 sec
 
-    cmp r7, #1          @ check if the BUTTON_PRESSED flag is 0
-    bne out_of_phase
+    cmp r7, #0          @ check if the BUTTON_PRESSED flag is 0
+    beq out_of_phase
 
     @ in phase
     cmp r6, #0          @ check if PHASE flag is zero
+    eor r6, #1          @ toggle the PHASE flag
+
     beq turn_on         @ if it is zero, turn the leds on
     
     bl turn_leds_off    @ turn leds off
-    eor r6, 1           @ toggle the PHASE flag
 
 b loop
 
 turn_on:
     bl turn_leds_on     @ turn the leds on
-    eor r6, 1           @ toggle the PHASE flag
 
 b loop
 
@@ -74,6 +74,8 @@ out_of_phase:
     bl turn_leds_off
     
     cmp r6, #0      @ check the PHASE flag
+    eor r6, #1      @ toggle the PHASE flag
+
     beq green_phase @ turn on the green
 
     bl blue_led_on
