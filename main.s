@@ -19,6 +19,7 @@
 @ R5 - TIMER
 @ R6 - PHASE flag
 @ R7 - BUTTON_PRESSED
+@ R8 - BUTTON WAS PRESSED BEFORE
 
 _start: @ jako main v c
     bl setup_clock
@@ -26,24 +27,32 @@ _start: @ jako main v c
     mov r6, #0           @ set LEDS_ON flag to zero
     mov r5, #0           @ set TIMER to 0
     mov r7, #0           @ set BUTTON_PRESSED to 0
+    mov r8, #0           @ set BUTTON WAS PRESSED BEFORE to 0
     bl turn_leds_off    @ turn leds off
     
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
     ldr r1, [r0]        @ load the value stored on address from r0 to r1. r1 = 0x40010808
     tst r1, #1          @ Test if 1st pin is HIGH
-
-    ittee ne            @ if the button is pressed
-    movne r5, #0        @ reset the timer to go straight to on_timer_zero
-    movne r7, #1        @ set the BUTTON_PRESSED flag
-    moveq r7, #0        @ else clear the BUTTON_PRESSED flag and
-    beq timer           @ go straight to timer (no need to debounce)
+    beq button_isnt_pressed @ if button isnt pressed
+    
+    @ the button is pressed
+    teq r8, #0          @ test if the button was pressed before
+    mov r8, #1          @ set BUTTON WAS PRESSED BEFORE
+    mov r7, #1
+    bne timer           @ if yes ==> go to timer
+    @ otherwise ==> debounce
 
 debounce:
     ldr r0, =0x384E6     @ ~0,1sec
 debounce_internal:
     subs r0, #1
     bne debounce_internal
+b timer
+
+button_isnt_pressed:
+    mov r7, #0  @ clear the BUTTON PRESSED flag
+    mov r8, #0  @ clear the BUTTON WAS PRESSED BEFORE flag
 
 timer:
     cmp r5, #0          @ compare TIMER with 0
@@ -62,7 +71,8 @@ on_timer_zero:
     @ otherwise in phase
     cmp r6, #0          @ check if PHASE flag is zero
     beq turn_on         @ if it is zero, turn the leds on
-    bl blue_led_off    @ otherwise turn leds off
+    
+    bl blue_led_off     @ otherwise turn leds off
     bl green_led_off
 
 b loop
@@ -74,7 +84,8 @@ turn_on:
 b loop
 
 out_of_phase:
-    bl turn_leds_off
+    bl blue_led_off
+    bl green_led_off
     
     cmp r6, #0      @ check the PHASE flag
     beq green_phase @ turn on the green
