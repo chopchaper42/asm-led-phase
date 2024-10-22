@@ -62,7 +62,7 @@ timer:
     b loop               @ and jump to loop
 
 on_timer_zero:
-    ldr r5, =0x8CC3F   @ set TIMER for ~0,5 sec
+    ldr r5, =0x54759   @ set TIMER for ~0,5 sec
     eor r6, #1          @ toggle the PHASE flag
 
     cmp r7, #0          @ check if the BUTTON_PRESSED flag is 0
