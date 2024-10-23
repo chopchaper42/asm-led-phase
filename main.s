@@ -1,3 +1,5 @@
+@ TST - bitwise AND
+
 .syntax unified @ divided nebo unified
 
 .word 0x20001000
@@ -16,227 +18,150 @@
 .set GPIOA_ODR, 0x4001080C
 .set GPIOA_IDR, 0x40010808
 
-.set SHORT, 10
-.set LONG, 20
+.set SHORT_PHASE_LENGTH, 0xA8EB2  @ 0,1 sec * 3 = 0,3 sec
+.set  LONG_PHASE_LENGTH, 0x1C2730 @ 0,1 sec * 8 = 0,8 sec
+.set DELAY_LENGTH, 0x11987E       @ 0,1 sec * 5 = 0,5 sec
+.set PAUSE_LENGTH, 0x709CC0       @ 0,1 sec * 20 = 2 sec
 
-_start: @ jako main v c
-    bl setup_clock  @ bl - branch and link
+@ R5 - TIMER
+@ R6 - PHASE STATE flag - there are two states in each loop 1-2-1-2-1-2
+@ R7 - PHASE COUNTER
+@ R8 - LOOP COUNTER
+@ R9 - SEQUENCE NUMBER
+@ R10 - DELAY ARGUMENT for TIMER
+
+_start:
+    bl setup_clock
     bl setup_gpio
+
+    mov r5, #0          @ set TIMER to 0
+    mov r6, #1          @ set PHASE STATE to 1
+    mov r7, #0          @ set PHASE COUNTER to 0
+    mov r8, #0          @ set LOOP COUNTER to 0
+    mov r9, #0          @ set SEQUENCE NUMBER to 0 (Sequence A)
+    bl turn_leds_off    @ turn leds off
     
-    mov r2, 0          @ counter
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
     ldr r1, [r0]        @ load the value stored on address from r0 to r1. r1 = 0x40010808
-    tst r1, #0x1        @ Test if 1st pin is HIGH
+    tst r1, #1          @ Test if 1st pin is HIGH
+    beq timer           @ if button isnt pressed, skip debouncing
     
-    @ if button isn't pressed, goto loop1
-    
-    beq loop1          
+    @ change sequence number. If it is 3, set to 0
+    teq r9, #3  @ if seq. num == 3, make it 0
+    mov r9, #0
+    beq debounce @ jump to debounce
 
-    @ if button is pressed:
-    
-    teq r2, #3              @ if r2 equals 3
-    beq reset_counter       @ if Z = 0 (r2 != 3)
-    bne increase_counter    @ reset counter
+    add r9, #1   @ otherwise, add 1
 
-loop1:
-    teq r2, #0
+    @ debounce
+debounce:
+    ldr r0, =0x384E6     @ ~0,1sec
+debounce_internal:
+    subs r0, #1
+    bne debounce_internal
+b timer
+
+
+timer:
+    cmp r5, #0          @ compare TIMER with 0
+    beq on_timer_zero   @ if TIMER == 0, jump to on_timer_zero
+
+    subs r5, #1          @ else subtract 1 from TIMER
+    b loop               @ and jump to loop
+
+@ control PHASE COUNTER, LOOP COUNTER and PHASE STATE
+@ choose the sequence
+on_timer_zero:
+
+    @ PHASE STATE
+    eor r6, #1            @ toggle the PHASE STATE [0 -> 1, 1 -> 0]
+
+    @ LOOP COUNTER
+    teq r6, #0              @ check if the PHASE STATE == 0
+    bne sequence_switch     @ if not, jump to sequence_switch
+                            @ otherwise increment the LOOP COUNTER
+    teq r8, #3              @ check if the LOOP COUNTER == 3
+    ite eq
+    moveq r8, #0            @ reset the LOOP COUNTER
+    addne r8, #1            @ increment the LOOP COUNTER
+        
+phase_counter:
+    @ PHASE COUNTER -> LOOP COUNTER
+
+    teq r8, #0            @ check if LOOP COUNTER == 0
+    bne sequence_switch   @ if not, go to sequence_switch
+
+    @ LOOP COUNTER has been reset, 
+    @ if PHASE COUNTER is overflown, reset it
+    teq r7, #3            @ check if the PHASE COUNTER == 3
+    ite eq
+    moveq r7, #0          @ if yes, reset the PHASE COUNTER
+    addne r7, #1          @ otherwise, add 1 to PHASE COUNTER
+    
+    @ if PHASE COUNTER has been reset, need to pause
+    teq r7, #0               @ check if the PHASE COUNTER == 0
+    itt eq
+    ldreq r5, =PAUSE_LENGTH   @ load 2sec to TIMER
+    beq loop
+
+sequence_switch:
+    @ SEQUENCE
+    teq r9, #0
     beq sequence_A
 
-    teq r2, #1
-    beq sequence_B
+    teq r9, #1
+    @beq sequence_B
 
-    teq r2, #2
-    beq sequence_C
+    teq r9, #2
+    @beq sequence_C
 
-    teq r2, #3
-    beq sequence_D
-
-    mov r0, #30
-    bl delay
-    
-b loop
-
-reset_counter:
-    mov r2, 0
-bx lr
-
-increase_counter:
-    add r2, #1
-bx lr
+    teq r9, #3
+    @beq sequence_D
 
 sequence_A:
     
-    mov r3, #3       @ 3 times
+    teq r6, #1      @ check if STATE 1
+    beq A_state_B   @ if so, go to state B [DELAY is a constant]
 
-@ short
-short_1A:
-    
-    @ Blue SOS
+    teq r7, #1      @ check if the PHASE == 1
+    ite eq
+    ldreq r10, =LONG_PHASE_LENGTH   @ [PHASE == 1 --> load long delay]
+    ldrne r10, =SHORT_PHASE_LENGTH  @ [PHASE == 0 or 2 --> load short delay]
+
+@ State_A --> load custom delay and light up the blue LED
+A_state_A:
+    mov r5, r10  @ load delay length to TIMER
+    bl green_led_off
     bl blue_led_on
-    bl green_led_off
-    mov r0, SHORT
-    bl delay
-
-    @ Green SOS
-    bl blue_led_off
-    bl green_led_on
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_1A
-
-    mov r3, #3
-long_A:
-    bl blue_led_on
-    bl green_led_off
-    mov r0, LONG
-    bl delay
-
-    bl blue_led_off
-    bl green_led_on
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne long_A
-
-    mov r3, #3
-short_2A:
-
-    @ Blue SOS
-    bl blue_led_on
-    bl green_led_off
-    mov r0, SHORT
-    bl delay
-
-    @ Green SOS
-    bl blue_led_off
-    bl green_led_on
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_2A
-
-    bl green_led_off
-    bl blue_led_off
-
-    mov r0, LONG
-    bl delay
 
 b loop
 
-sequence_B:
+@ State_B --> delay for 0,5sec and light up green LED
+A_state_B:
+    ldr r5, =DELAY_LENGTH    @ load the delay length to TIMER
     bl blue_led_off
-
-    mov r3, #3       @ 3 times
-
-@ short
-short_1B:
-    
-    bl green_led_on
-    mov r0, SHORT
-    bl delay
-
-    bl green_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_1B
-
-    mov r3, #3      @ 3 times
-long_B:
-    bl green_led_on
-    mov r0, LONG
-    bl delay
-
-    bl green_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne long_B
-
-    mov r3, #3
-short_2B:
-
-    bl green_led_on
-    mov r0, SHORT
-    bl delay
-
-    @ Green SOS
-    bl green_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_2B
-
-    mov r0, LONG
-    bl delay
-
-b loop
-
-sequence_C:
-    bl blue_led_off
-
-    mov r3, #3       @ 3 times
-
-@ short
-short_1C:
-    
-    bl blue_led_on
-    mov r0, SHORT
-    bl delay
-
-    bl blue_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_1C
-
-    mov r3, #3      @ 3 times
-long_C:
-    bl blue_led_on
-    mov r0, LONG
-    bl delay
-
-    bl blue_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne long_C
-
-    mov r3, #3
-short_2C:
-
-    bl blue_led_on
-    mov r0, SHORT
-    bl delay
-
-    @ Green SOS
-    bl blue_led_off
-    mov r0, SHORT
-    bl delay
-
-    subs r3, #1
-    bne short_2C
-
-    mov r0, LONG
-    bl delay
-
-b loop
-
-sequence_D:
-    bl blue_led_on
     bl green_led_on
 
 b loop
+
+
+turn_leds_off:
+    ldr r0, =GPIOC_ODR   @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    bic r1, #0x300       @ set 8th pin to 1
+    str r1, [r0]         @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
+turn_leds_on:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    orr r1, #0x300     @ set 8th pin to 1
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
 
 blue_led_on:
     ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
@@ -246,6 +171,32 @@ blue_led_on:
 
 bx lr
 
+green_led_on:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    orr r1, #0x200     @ set 9th pin to 1
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
+toggle_green:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    eor r1, #0x200     @ set 9th pin to 1
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
+@ make sure that leds have different state if you want them to be out of phase
+toggle_leds:
+    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
+    ldr r1, [r0]         @ move r0 to r1
+    eor r1, #0x300     @ toggle 8th and 9th pins
+    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
+
+bx lr
+
+
 blue_led_off:
     ldr r0, =GPIOC_ODR  @ load GPIOC_ODR address to R0
     ldr r1, [r0]
@@ -254,13 +205,6 @@ blue_led_off:
 
 bx lr
 
-green_led_on:
-    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
-    ldr r1, [r0]         @ move r0 to r1
-    orr r1, #0x200     @ set 8th pin to 1
-    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
-
-bx lr
 
 green_led_off:
     ldr r0, =GPIOC_ODR  @ load GPIOC_ODR address to R0
@@ -292,13 +236,4 @@ setup_gpio:
     orr r1, #0x8         @ set PA0 to INPUT pull down
     str r1, [r0]
 
-bx lr
-
-delay:
-    ldr r1, =0x1F000
-delay_second:
-    subs r1, #1
-    bne delay_second
-    subs r0, #1
-    bne delay
 bx lr
