@@ -18,10 +18,10 @@
 .set GPIOA_ODR, 0x4001080C
 .set GPIOA_IDR, 0x40010808
 
-.set SHORT_PHASE_LENGTH, 0xA8EB2  @ 0,1 sec * 3 = 0,3 sec
-.set  LONG_PHASE_LENGTH, 0x1C2730 @ 0,1 sec * 8 = 0,8 sec
-.set DELAY_LENGTH, 0x11987E       @ 0,1 sec * 5 = 0,5 sec
-.set PAUSE_LENGTH, 0x709CC0       @ 0,1 sec * 20 = 2 sec
+.set SHORT_PHASE_LENGTH, 0x54759  @A8EB2  @ 0,1 sec * 3 = 0,3 sec
+.set  LONG_PHASE_LENGTH, 0xE1398  @1C2730 @ 0,1 sec * 8 = 0,8 sec
+.set DELAY_LENGTH, 0x8CC3F        @11987E       @ 0,1 sec * 5 = 0,5 sec
+.set PAUSE_LENGTH, 0x384E60       @709CC0       @ 0,1 sec * 20 = 2 sec
 
 @ R5 - TIMER
 @ R6 - PHASE STATE flag - there are two states in each loop 1-2-1-2-1-2
