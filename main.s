@@ -47,6 +47,8 @@ loop:
     tst r1, #1          @ Test if 1st pin is HIGH
     beq timer           @ if button isnt pressed, skip debouncing
     
+    bl set_defaults     @ set default values for a sequence
+
     @ change sequence number. If it is 3, set to 0
     teq r9, #4  @ if seq. num == 3
     ite eq
