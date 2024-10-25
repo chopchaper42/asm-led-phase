@@ -39,7 +39,8 @@ _start:
     mov r7, #0          @ set PHASE COUNTER to 0
     mov r8, #0          @ set LOOP COUNTER to 0
     mov r9, #0          @ set SEQUENCE NUMBER to 0 (Sequence A)
-    bl turn_leds_off    @ turn leds off
+    bl blue_led_off
+    bl green_led_off
     
 loop:
     ldr r0, =GPIOA_IDR  @ Read input of port A
@@ -196,23 +197,6 @@ set_defaults:
     mov r8, #0          @ set LOOP COUNTER to 0
 bx lr
 
-turn_leds_off:
-    ldr r0, =GPIOC_ODR   @ load GPIOC_ODR address to R0
-    ldr r1, [r0]         @ move r0 to r1
-    bic r1, #0x300       @ set 8th pin to 1
-    str r1, [r0]         @ store R1 to [R0] - GPIOC_ODR
-
-bx lr
-
-turn_leds_on:
-    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
-    ldr r1, [r0]         @ move r0 to r1
-    orr r1, #0x300     @ set 8th pin to 1
-    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
-
-bx lr
-
-
 blue_led_on:
     ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
     ldr r1, [r0]         @ move r0 to r1
@@ -229,24 +213,6 @@ green_led_on:
 
 bx lr
 
-toggle_green:
-    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
-    ldr r1, [r0]         @ move r0 to r1
-    eor r1, #0x200     @ set 9th pin to 1
-    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
-
-bx lr
-
-@ make sure that leds have different state if you want them to be out of phase
-toggle_leds:
-    ldr r0, =GPIOC_ODR @ load GPIOC_ODR address to R0
-    ldr r1, [r0]         @ move r0 to r1
-    eor r1, #0x300     @ toggle 8th and 9th pins
-    str r1, [r0]       @ store R1 to [R0] - GPIOC_ODR
-
-bx lr
-
-
 blue_led_off:
     ldr r0, =GPIOC_ODR  @ load GPIOC_ODR address to R0
     ldr r1, [r0]
@@ -254,7 +220,6 @@ blue_led_off:
     str r1, [r0]        @ store 0 from r1 to GPIOC_ODR
 
 bx lr
-
 
 green_led_off:
     ldr r0, =GPIOC_ODR  @ load GPIOC_ODR address to R0
