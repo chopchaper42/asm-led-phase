@@ -94,10 +94,11 @@ phase_counter:
 
     @ LOOP COUNTER has been reset, 
     @ if PHASE COUNTER is overflown, reset it
-    teq r7, #3            @ check if the PHASE COUNTER == 3
-    ite eq
-    moveq r7, #0          @ if yes, reset the PHASE COUNTER
+    teq r7, #2            @ check if the PHASE COUNTER == 3
+    ittee ne
     addne r7, #1          @ otherwise, add 1 to PHASE COUNTER
+    movne r8, #1          @ set LOOP COUNTER to 1
+    moveq r7, #0          @ if yes, reset the PHASE COUNTER
     
     @ if PHASE COUNTER has been reset, need to pause
     teq r7, #0               @ check if the PHASE COUNTER == 0
@@ -145,6 +146,16 @@ A_state_B:
 
 b loop
 
+sequence_B:
+
+b loop
+
+set_defaults:
+    mov r5, #0          @ set TIMER to 0
+    mov r6, #1          @ set PHASE STATE to 1
+    mov r7, #0          @ set PHASE COUNTER to 0
+    mov r8, #0          @ set LOOP COUNTER to 0
+bx lr
 
 turn_leds_off:
     ldr r0, =GPIOC_ODR   @ load GPIOC_ODR address to R0
