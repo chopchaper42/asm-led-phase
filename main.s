@@ -48,15 +48,14 @@ loop:
     beq timer           @ if button isnt pressed, skip debouncing
     
     @ change sequence number. If it is 3, set to 0
-    teq r9, #3  @ if seq. num == 3, make it 0
-    mov r9, #0
-    beq debounce @ jump to debounce
-
-    add r9, #1   @ otherwise, add 1
+    teq r9, #4  @ if seq. num == 3
+    ite eq
+    moveq r9, #0    @ reset the SEQUENCE_COUNTER
+    addne r9, #1    @ otherwise, add 1
 
     @ debounce
 debounce:
-    ldr r0, =0x384E6     @ ~0,1sec
+    ldr r0, =0x8CC3F     @ ~0,5sec
 debounce_internal:
     subs r0, #1
     bne debounce_internal
@@ -95,58 +94,96 @@ phase_counter:
     @ LOOP COUNTER has been reset, 
     @ if PHASE COUNTER is overflown, reset it
     teq r7, #2            @ check if the PHASE COUNTER == 3
-    ittee ne
+    itte ne
     addne r7, #1          @ otherwise, add 1 to PHASE COUNTER
     movne r8, #1          @ set LOOP COUNTER to 1
     moveq r7, #0          @ if yes, reset the PHASE COUNTER
     
     @ if PHASE COUNTER has been reset, need to pause
     teq r7, #0               @ check if the PHASE COUNTER == 0
-    itt eq
-    ldreq r5, =PAUSE_LENGTH   @ load 2sec to TIMER
-    beq loop
+    bne sequence_switch      @ if not, go to sequence_switch
+    
+    ldr r5, =PAUSE_LENGTH   @ load 2sec to TIMER
+    b loop
 
 sequence_switch:
-    @ SEQUENCE
-    teq r9, #0
-    beq sequence_A
-
-    teq r9, #1
-    @beq sequence_B
-
-    teq r9, #2
-    @beq sequence_C
-
-    teq r9, #3
-    @beq sequence_D
-
-sequence_A:
-    
-    teq r6, #1      @ check if STATE 1
-    beq A_state_B   @ if so, go to state B [DELAY is a constant]
-
     teq r7, #1      @ check if the PHASE == 1
     ite eq
     ldreq r10, =LONG_PHASE_LENGTH   @ [PHASE == 1 --> load long delay]
     ldrne r10, =SHORT_PHASE_LENGTH  @ [PHASE == 0 or 2 --> load short delay]
 
-@ State_A --> load custom delay and light up the blue LED
+    teq r6, #1
+    ite eq
+    ldreq r5, =DELAY_LENGTH    @ load the delay length to TIMER
+    movne r5, r10              @ load delay length to TIMER
+
+    bl green_led_off
+    bl blue_led_off
+
+    @ SEQUENCE
+    teq r9, #0
+    beq sequence_A
+
+    teq r9, #1
+    beq sequence_B
+
+    teq r9, #2
+    beq sequence_C
+
+    teq r9, #3
+    beq sequence_D
+
+sequence_A:
+    teq r6, #1      @ check if STATE 1
+    beq A_state_B   @ if so, go to state B [DELAY is a constant]
+
 A_state_A:
-    mov r5, r10  @ load delay length to TIMER
     bl green_led_off
     bl blue_led_on
 
 b loop
 
-@ State_B --> delay for 0,5sec and light up green LED
 A_state_B:
-    ldr r5, =DELAY_LENGTH    @ load the delay length to TIMER
     bl blue_led_off
     bl green_led_on
 
 b loop
 
 sequence_B:
+    teq r6, #1      @ check if STATE 1
+    beq B_state_B   @ if so, go to state B [DELAY is a constant]
+
+B_state_A:
+    mov r5, r10  @ load delay length to TIMER
+    bl green_led_on
+
+b loop
+
+B_state_B:
+    ldr r5, =DELAY_LENGTH    @ load the delay length to TIMER
+    bl green_led_off
+
+b loop
+
+sequence_C:
+    teq r6, #1      @ check if STATE 1
+    beq B_state_B   @ if so, go to state B [DELAY is a constant]
+
+C_state_A:
+    mov r5, r10  @ load delay length to TIMER
+    bl blue_led_on
+
+b loop
+
+C_state_B:
+    ldr r5, =DELAY_LENGTH    @ load the delay length to TIMER
+    bl blue_led_off
+
+b loop
+
+sequence_D:
+    bl blue_led_on
+    bl green_led_on
 
 b loop
 
